@@ -4,3 +4,14 @@
  1. 进入 桌面  >设置>通用设置>智能家居设置>智能主机管理，会提示输入密码, 密码为admin, 然后输入智能家居账号和密码。
  2. 进入房间管理页面，点击右上角 + 图标，添加楼层
 
+* Jackson 5
+  * Michael
+  * Tito
+  * Jackie
+  * Marlon
+  * Jermaine
+* TMNT
+  * Leonardo
+  * Michelangelo
+  * Donatello
+  * Raphael
