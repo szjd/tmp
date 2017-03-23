@@ -1,4 +1,4 @@
-# JSSS协议 V1.0
+# JdPlaySS协议 V1.0
 
 标签（空格分隔）： 网络通信 ServerSocket 局域网
 
@@ -6,7 +6,7 @@
 
 ## 概述
 
-JSSS是Jd Simple Server Socket的缩写，参考了mqtt、DLNA协议的思想，是基于TCP协议的简易Server Socket，可用于局域网控制背景音系统。
+JdPlaySS是JdPlay Server Socket的缩写，参考了mqtt、DLNA协议的思想，是基于TCP协议的简易Server Socket，可用于非Android/iOS系统（如Linux网关）下的局域网背景音系统控制，并可支持多个客户端同时连接。
 
 ## 条件&约束
 
@@ -25,7 +25,7 @@ Connection: close
 Host: 239.255.255.250:1900
 ```
 
-Client监听到到SSDP NOTIFY包，解析包如果含有EXT字段并该字段含有`JDPLAY`关键字，则发现背景音系统，如果版本号大于XXX,则可以通过本协议来控制。 参考NOTIFY包数据如下：
+Client监听到SSDP NOTIFY包，解析包如果含有EXT字段并该字段含有`JDPLAY`关键字，则发现背景音系统，如果版本号大于XXX,则可以通过本协议来控制。 参考NOTIFY包数据如下：
 ```
 NOTIFY * HTTP/1.1
 Host: 239.255.255.250:1900
@@ -38,8 +38,6 @@ NTS: ssdp:alive
 USN: uuid:10000003816::urn:schemas-upnp-org:device:MediaRenderer:1
 NT: urn:schemas-upnp-org:device:MediaRenderer:1
 ```
-
-
 
 ## 控制协议
 
@@ -101,10 +99,12 @@ i0: [必选] cmd命令，支持的命令及参数设置如下。
 |105|MEDIA_SEEK | C->S|跳播   | i1: 跳播位置，单位秒  | 无  |
 |106|MEDIA_GET_POSITION | C->S|获取播放位置   | 无  | s0: 当前时间(秒):总时间(秒)  |
 |107|MEDIA_SET_VOLUME | C->S| 设置音量  | i1: 音量值(0~100)  | 无  |
-|108|MEDIA_GET_VOLUME | C->S| 获取音量 | 无  | i0: 音量值(0~100)  |
+|108|MEDIA_GET_VOLUME | C->S| 获取音量 | 无  | i1: 音量值(0~100)  |
 |150|MEDIA_REPORT_METADATA | S->C| 反馈元数据  | s0:参考元数据  | Client无需回复  |
 |151|MEDIA_REPORT_PlAY_STATE | S->C| 反馈播放状态  | i1: 播放状态 <br> 0:暂停<br>1:正在播放<br> 2:缓冲结束<br> | Client无需回复  |
 |152|MEDIA_REPORT_VOLUME | S->C| 反馈音量  | i1:音量值(0~100)  | Client无需回复  |
+|200|DEVICE_POWER_ON | C->S| 开机 | 无  | 无  |
+|201|DEVICE_POWER_OFF | C->S| 关机 | 无  | 无  |
 
 ##### 元数据
 ```json
@@ -113,15 +113,15 @@ i0: [必选] cmd命令，支持的命令及参数设置如下。
   "singer": "刘德华",
   "songId": "548408",
   "songTitle": "爱你一万年",
-  "songUrl": "http: //www.xxx.com/1.mp3",
+  "songUrl": "http://www.xxx.com/1.mp3",
   "volume": 80
 }
 ```
 
 #### PUBACK
 
-i0: 消息序号,跟PUBLISH命令i0消息一致
-s0: [可选]，如果需要反馈消息
+i0: 跟PUBLISH cmd命令值一致
+i1,s0: [可选]，如果需要反馈消息
 
 回复参数如上表格
 
@@ -136,27 +136,28 @@ s0: [可选]，如果需要反馈消息
 #### DISCONNECT
 无参数
 
-### 集成＆开发
+## 集成＆开发
 
-#### Client端流程
+### Client端流程
 1. 通过DLNA设备发现发现背景音主机设备
-2. 建立socket链接，发送CONNECT请求，参考发送数据 `{"type":1,"i0":1,"i1":240}`
+2. 建立socket链接，开始监听socket接收到的数据，并以换行符作为包分隔符。
+3. 发送CONNECT请求，参考发送数据 `{"type":1,"i0":1,"i1":240}`
 等待Server端反馈连接成功。 参考接收到的数据`{"i0":1,"i1":0,"s0":"OK","seq":0,"type":2}`
-3. 如果连接成功，开始监听socket接收到的数据，并以换行符作为包分隔符。
-4. 发送 PUBLISH/MEDIA_GET_METADATA 请求，获取元数据。 参考发送数据`{"type":3,"i0":100,"seq":1}`
+4. 如果连接成功，发送 PUBLISH/MEDIA_GET_METADATA 请求，获取元数据。 参考发送数据`{"type":3,"i0":100,"seq":1}`
 5. 根据播放状态决定是否周期性读取播放位置，如果 s0.playState=1, 发送获取播放位置请求，参考发送数据 `{"type":3,"i0":106,"seq":1}`
+6. 客户端需要在KeepAlive时间周期内发送数据给服务端以维持长连接,否则服务器端超时会主动断开连接。客户端也需要检测PINGREQ/PINGRESP消息或ACK消息是否收到，如果客户端检测到通信链路异常，则需要跟服务端重连。
+7. 接收线程可能监听到元数据、播放状态以及音量改变的消息。
 
-### 调试&测试
+### 测试＆调试方法
 
 1. 进入背景音系统 “设置>网络设置”, 查看ip地址，通过telnet连接背景音系统
-
 > telnet ip地址 8000
 
-2. 发布连接请求
+2. 根据如上"Client端流程",在telnet终端通过命令测试交互
 
-> {"type":1,"i0":1,"i1":240}
+## 参考
 
-### 参考
+### 常量定义
 为简化开发者工作量，常量定义如下：
 ```java
 public class JSSSConstant {
@@ -186,9 +187,31 @@ public class JSSSConstant {
     public static final int MEDIA_REPORT_METADATA = 150;
     public static final int MEDIA_REPORT_PlAY_STATE = 151;
     public static final int MEDIA_REPORT_VOLUME = 152;
-
+    
+    //JSSS协议设备控制命令
+    public static final int DEVICE_POWER_ON = 200;
+    public static final int DEVICE_POWER_OFF = 201;
+    
     //JSSS 状态码
     public static final int FAIL = -1;
     public static final int OK = 0;
 }
 ```
+
+### 常用命令
+
+|命令|转换后命令 |
+|--------|--------|
+|连接请求|{"type":1,"i0":1,"i1":240} |
+|播放|{"type":3,"i0":101,"seq":1} |
+|暂停|{"type":3,"i0":102,"seq":1} |
+|获取元数据|{"type":3,"i0":100,"seq":1} |
+|获取播放位置|{"type":3,"i0":106,"seq":1}|
+
+## FAQ
+
+Q: 为什么Server端Socket连接会主动断开
+A: 请检查是否在KeepAlive时间内发送过PING或者PUBLISH命令
+
+Q: 为什么Client发布消息不成功
+A: 请检查seq字段是否设置为非０值，并主动递增
