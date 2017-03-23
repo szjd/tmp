@@ -45,7 +45,7 @@ NT: urn:schemas-upnp-org:device:MediaRenderer:1
 
 C/S直接数据传递采用如下字段，注意seq=0保留给服务器端消息的主动反馈。
 
-```json
+```
 {
     "type": [int][必选]控制包类型,
     "seq": [int][可选] 控制包序号,
@@ -210,8 +210,8 @@ public class JSSSConstant {
 
 ## FAQ
 
-Q: 为什么Server端Socket连接会主动断开
+Q: 为什么Server端Socket连接会主动断开<br>
 A: 请检查是否在KeepAlive时间内发送过PING或者PUBLISH命令
 
-Q: 为什么Client发布消息不成功
+Q: 为什么Client发布消息不成功<br>
 A: 请检查seq字段是否设置为非０值，并主动递增
